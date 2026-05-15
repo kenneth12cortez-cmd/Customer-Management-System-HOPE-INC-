@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
-// This pulls the keys you just saved in the .env file
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Replace these with your actual Project URL and Anon Key
+const supabaseUrl = 'https://urkeyiasmlwmlzykilhq.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVya2V5aWFzbWx3bWx6eWtpbGhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NzM0MjcsImV4cCI6MjA5MTQ0OTQyN30.6ttLyP0wzsOD2EOu1pUqj7pp3FbpwlBTljheWn3a3sQ'
 
-// This creates the "client" that handles all your database requests
 export const supabase = createClient(supabaseUrl, supabaseKey)

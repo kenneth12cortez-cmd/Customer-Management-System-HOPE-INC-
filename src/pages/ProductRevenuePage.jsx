@@ -22,8 +22,6 @@ export default function ProductRevenuePage() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         {loading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
-        ) : data.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No data found.</div>
         ) : (
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b">
@@ -38,7 +36,7 @@ export default function ProductRevenuePage() {
             <tbody className="divide-y">
               {data.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="p-4 text-sm font-mono text-blue-600">{row.prodcode}</td>
+                  <td className="p-4 text-sm font-mono text-blue-600">{row.prodCode}</td>
                   <td className="p-4 text-sm text-gray-800">{row.description}</td>
                   <td className="p-4 text-sm text-gray-500">{row.unit}</td>
                   <td className="p-4 text-sm text-right">{row.total_qty_sold}</td>

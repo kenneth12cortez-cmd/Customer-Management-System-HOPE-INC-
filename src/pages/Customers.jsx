@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useRights } from "../lib/useRights";
 import AddCustomerModal from "../components/AddCustomerModal";
 import EditCustomerModal from "../components/EditCustomerModal";
 import DeleteConfirmDialog from "../components/DeleteConfirmDialog";
@@ -7,6 +8,7 @@ import Toast from "../components/Toast";
 import SkeletonRow from "../components/SkeletonRow";
 
 export default function Customers() {
+  const { rights, userType, loading: rightsLoading } = useRights();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -14,27 +16,23 @@ export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
   const [toast, setToast] = useState(null);
 
+  // Rights gates
+  const canAdd = rights.CUST_ADD === 1;
+  const canEdit = rights.CUST_EDIT === 1;
+  const canDelete = rights.CUST_DEL === 1;
+  const isAdmin = userType === "ADMIN" || userType === "SUPERADMIN";
+
   useEffect(() => {
-    fetchCurrentUser();
     fetchCustomers();
   }, []);
 
-  async function fetchCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase
-        .from("user").select("*").eq("id", user.id).single();
-      setCurrentUser(data);
-    }
-  }
-
   async function fetchCustomers() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("customer").select("*").order("custno");
+    let query = supabase.from("customer").select("*").order("custno");
+    if (userType === "USER") query = query.eq("record_status", "ACTIVE");
+    const { data, error } = await query;
     if (error) setToast({ message: "Failed to load customers.", type: "error" });
     else setCustomers(data || []);
     setLoading(false);
@@ -51,11 +49,12 @@ export default function Customers() {
   };
 
   const confirmSoftDelete = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("customer")
       .update({
         record_status: "INACTIVE",
-        stamp: `Soft-deleted by ${currentUser?.email} on ${new Date().toISOString()}`
+        stamp: `Soft-deleted by ${user?.email} on ${new Date().toISOString()}`
       })
       .eq("custno", selectedCustomer.custno);
 
@@ -72,16 +71,14 @@ export default function Customers() {
     c.payterm?.toLowerCase().includes(search.toLowerCase())
   );
 
-  const isAdmin = currentUser?.user_type === "ADMIN" || currentUser?.user_type === "SUPERADMIN";
-  const isSuperAdmin = currentUser?.user_type === "SUPERADMIN";
-
   return (
     <div className="space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Customer Management</h1>
-        {isAdmin && (
+        {/* Add button gated by CUST_ADD right */}
+        {canAdd && (
           <button
             onClick={() => setIsAddOpen(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition"
@@ -108,13 +105,16 @@ export default function Customers() {
               <th className="p-4 font-semibold text-gray-600">Address</th>
               <th className="p-4 font-semibold text-gray-600">Pay Term</th>
               <th className="p-4 font-semibold text-gray-600">Status</th>
+              {/* Stamp column gated for ADMIN/SUPERADMIN */}
               {isAdmin && <th className="p-4 font-semibold text-gray-600">Stamp</th>}
               <th className="p-4 font-semibold text-gray-600 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
-            {loading ? (
-              Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={isAdmin ? 7 : 6} />)
+            {loading || rightsLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonRow key={i} cols={isAdmin ? 7 : 6} />
+              ))
             ) : filtered.length === 0 ? (
               <tr>
                 <td colSpan={isAdmin ? 7 : 6} className="p-8 text-center text-gray-400">
@@ -141,13 +141,21 @@ export default function Customers() {
                     <td className="p-4 text-xs text-gray-400">{customer.stamp || '—'}</td>
                   )}
                   <td className="p-4 text-right space-x-3">
-                    {isAdmin && (
-                      <button onClick={() => handleEdit(customer)} className="text-blue-600 hover:underline text-sm font-medium">
+                    {/* Edit button gated by CUST_EDIT right */}
+                    {canEdit && (
+                      <button
+                        onClick={() => handleEdit(customer)}
+                        className="text-blue-600 hover:underline text-sm font-medium"
+                      >
                         Edit
                       </button>
                     )}
-                    {isSuperAdmin && customer.record_status === 'ACTIVE' && (
-                      <button onClick={() => handleDelete(customer)} className="text-red-600 hover:underline text-sm font-medium">
+                    {/* Delete button gated by CUST_DEL right */}
+                    {canDelete && customer.record_status === 'ACTIVE' && (
+                      <button
+                        onClick={() => handleDelete(customer)}
+                        className="text-red-600 hover:underline text-sm font-medium"
+                      >
                         Delete
                       </button>
                     )}
@@ -159,9 +167,23 @@ export default function Customers() {
         </table>
       </div>
 
-      <AddCustomerModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onSuccess={fetchCustomers} />
-      <EditCustomerModal isOpen={isEditOpen} customerData={selectedCustomer} onClose={() => setIsEditOpen(false)} onSuccess={fetchCustomers} />
-      <DeleteConfirmDialog isOpen={isDeleteOpen} customerName={selectedCustomer?.custname} onClose={() => setIsDeleteOpen(false)} onConfirm={confirmSoftDelete} />
+      <AddCustomerModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSuccess={fetchCustomers}
+      />
+      <EditCustomerModal
+        isOpen={isEditOpen}
+        customerData={selectedCustomer}
+        onClose={() => setIsEditOpen(false)}
+        onSuccess={fetchCustomers}
+      />
+      <DeleteConfirmDialog
+        isOpen={isDeleteOpen}
+        customerName={selectedCustomer?.custname}
+        onClose={() => setIsDeleteOpen(false)}
+        onConfirm={confirmSoftDelete}
+      />
     </div>
   );
 }

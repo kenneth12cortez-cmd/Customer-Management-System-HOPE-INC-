@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { useRights } from "../lib/useRights";
+import SkeletonRow from "../components/SkeletonRow";
 
 export default function Products() {
+  const { rights, loading: rightsLoading } = useRights();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -15,7 +18,7 @@ export default function Products() {
     const { data, error } = await supabase
       .from("product_current_price")
       .select("*")
-      .order("prodcode");
+      .order("prodCode");
 
     if (error) console.error("Error fetching products:", error.message);
     else setProducts(data || []);
@@ -24,8 +27,19 @@ export default function Products() {
 
   const filtered = products.filter(p =>
     p.description?.toLowerCase().includes(search.toLowerCase()) ||
-    p.prodcode?.toLowerCase().includes(search.toLowerCase())
+    p.prodCode?.toLowerCase().includes(search.toLowerCase())
   );
+
+  // Block access if no PROD_VIEW right
+  if (!rightsLoading && rights.PROD_VIEW !== 1) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <p className="text-4xl mb-4">🔒</p>
+        <h2 className="text-xl font-bold text-gray-700">Access Denied</h2>
+        <p className="text-gray-500 text-sm mt-2">You don't have permission to view Products.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -34,7 +48,6 @@ export default function Products() {
         <p className="text-sm text-gray-500">View current items and pricing. This list is read-only.</p>
       </div>
 
-      {/* Search */}
       <input
         type="text"
         placeholder="Search by product code or description..."
@@ -44,8 +57,12 @@ export default function Products() {
       />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-400">Loading products...</div>
+        {loading || rightsLoading ? (
+          <table className="w-full">
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} cols={4} />)}
+            </tbody>
+          </table>
         ) : filtered.length === 0 ? (
           <div className="p-8 text-center text-gray-400">No products found.</div>
         ) : (
@@ -60,12 +77,12 @@ export default function Products() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filtered.map((product) => (
-                <tr key={product.prodcode} className="hover:bg-gray-50 transition-colors">
-                  <td className="p-4 text-sm font-mono text-blue-600">{product.prodcode}</td>
+                <tr key={product.prodCode} className="hover:bg-gray-50 transition-colors">
+                  <td className="p-4 text-sm font-mono text-blue-600">{product.prodCode}</td>
                   <td className="p-4 text-sm text-gray-800 font-medium">{product.description}</td>
                   <td className="p-4 text-sm text-gray-600">{product.unit}</td>
                   <td className="p-4 text-sm text-gray-900 font-bold text-right">
-                    ₱{Number(product.unitprice).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    ₱{Number(product.unitPrice).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}
